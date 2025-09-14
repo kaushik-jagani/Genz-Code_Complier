@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CodeZap Coding Platform</title>
+<!-- CodeMirror CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/material.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+:root {
+  --bg:#f5f5f5;
+  --panel:#ffffff;
+  --accent:#3b82f6;
+  --muted:#6b7280;
+  --output-bg:#1e293b;
+  --output-color:#d1fae5;
+}
+body {
+  margin:0;
+  font-family: 'Inter', sans-serif;
+  display:grid;
+  grid-template-rows:60px 1fr 40px;
+  height:100vh;
+  background: var(--bg);
+}
+header {
+  background: var(--accent);
+  color:#fff;
+  display:flex;
+  align-items:center;
+  padding:0 20px;
+  font-weight:700;
+  font-size:20px;
+}
+.main {
+  display:grid;
+  grid-template-columns:280px 1fr 400px;
+  gap:10px;
+  padding:10px;
+}
+.panel {
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 16px;
+  display:flex;
+  flex-direction:column;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.sidebar select, .sidebar button { margin-bottom:10px; padding:8px; border-radius:8px; border:1px solid #ccc; font-size:14px; width:100%; cursor:pointer; }
+.run-row { display:flex; gap:8px; margin-bottom:10px; }
+button.primary { background:var(--accent); color:#fff; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:500; }
+.output { background: var(--output-bg); color: var(--output-color); padding:12px; border-radius:8px; min-height:60vh; overflow:auto; white-space: pre-wrap; font-family: monospace; }
+.CodeMirror { height:60vh; border-radius:8px; font-size:14px; }
+footer { background:#111827; color:#d1d5db; display:flex; justify-content:center; align-items:center; font-size:14px; gap:8px; }
+footer a { color:#60a5fa; text-decoration:none; }
+@media(max-width:1100px){ .main{grid-template-columns:1fr;} .output{margin-top:10px;} }
+</style>
+</head>
+<body>
+
+<header>CodeZap Coding Platform</header>
+
+<div class="main">
+  <!-- Sidebar -->
+  <div class="panel sidebar">
+
+    <div style="margin-bottom:10px; font-size:13px; color:#374151; line-height:1.4;">
+    <strong>Instructions:</strong><br>
+    Write your code below. Before clicking <strong>Run</strong>, make sure to test with your own input carefully.<br>
+    Too many runs without debugging reduce your points.
+  </div>
+    <select id="langSelect"></select>
+    <div class="run-row">
+      <button id="runBtn" class="primary"><i class="fa fa-play"></i> Run</button>
+      <button id="formatBtn" class="primary"><i class="fa fa-code"></i> Format</button>
+    </div>
+  </div>
+
+  <!-- Code Editor -->
+  <div class="panel">
+    <textarea id="code"></textarea>
+  </div>
+
+  <!-- Output Panel -->
+  <div class="panel">
+    <div class="output" id="output">Output will appear here...</div>
+  </div>
+</div>
+
+<footer>
+  Developed by <a href="https://www.linkedin.com/in/kaushik-jagani-119091202/" target="_blank"><i class="fab fa-linkedin"></i> Kaushik Jagani</a>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/clike/clike.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/javascript/javascript.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prettier@3.0.0/standalone.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prettier@3.0.0/parser-babel.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prettier@3.0.0/parser-html.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prettier@3.0.0/parser-typescript.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/js-beautify@1.15.4/js/lib/beautify.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/js-beautify@1.15.4/js/lib/beautify-css.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/js-beautify@1.15.4/js/lib/beautify-html.js"></script>
+
+
+
+<script>
+// Judge0 RapidAPI
+const API_URL = "https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=true&wait=true";
+const API_KEY = "ef66b7fc60msh36943afa6d37c7fp105037jsn8f6bb7f5dd0f";
+
+const langSelect = document.getElementById("langSelect");
+const runBtn = document.getElementById("runBtn");
+const formatBtn = document.getElementById("formatBtn");
+const outputEl = document.getElementById("output");
+
+// Languages + Hello World snippets
+const LANGS = [
+  {
+    id: 50,
+    name: 'C (gcc)',
+    snippet: `#include <stdio.h>
+int main() {
+    printf("Hello World\\n");
+    return 0;
+}`
+  },
+  {
+    id: 54,
+    name: 'C++ (g++ 14)',
+    snippet: `#include <iostream>
+using namespace std;
+int main() {
+    cout << "Hello World" << endl;
+    return 0;
+}`
+  },
+  {
+    id: 62,
+    name: 'Java',
+    snippet: `class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello World");
+    }
+}`
+  },
+  {
+    id: 71,
+    name: 'Python 3',
+    snippet: `print("Hello World")`
+  },
+  {
+    id: 63,
+    name: 'JavaScript (Node.js)',
+    snippet: `console.log("Hello World");`
+  },
+  {
+    id: 51,
+    name: 'C# (Mono)',
+    snippet: `using System;
+class Program {
+    static void Main() {
+        Console.WriteLine("Hello World");
+    }
+}`
+  }
+];
+
+// Populate dropdown
+LANGS.forEach(l=>{
+  const opt = document.createElement("option");
+  opt.value = l.id;
+  opt.textContent = l.name;
+  langSelect.appendChild(opt);
+});
+
+// Initialize CodeMirror
+let editor = CodeMirror.fromTextArea(document.getElementById("code"), {
+  lineNumbers:true,
+  theme:"material",
+  mode:"text/x-c++src",
+  indentUnit:4,
+  tabSize:4
+});
+
+// Load snippet when language changes
+langSelect.addEventListener("change", ()=>{
+  const lang = LANGS.find(l=>l.id==langSelect.value);
+  editor.setValue(lang.snippet || "");
+  setEditorMode(lang.name);
+});
+
+// Set editor mode based on language
+function setEditorMode(langName){
+  if(langName.includes("C++") || langName.includes("C")) editor.setOption("mode","text/x-c++src");
+  else if(langName.includes("Java")) editor.setOption("mode","text/x-java");
+  else if(langName.includes("Python")) editor.setOption("mode","text/x-python");
+  else if(langName.includes("JavaScript")) editor.setOption("mode","javascript");
+  else if(langName.includes("C#")) editor.setOption("mode","text/x-csharp");
+}
+
+// Format code
+formatBtn.addEventListener("click", () => {
+    const langId = langSelect.value;
+    const code = editor.getValue();
+    const formatted = formatCode(code, langId);
+    editor.setValue(formatted);
+});
+
+// Base64 helpers
+function b64Encode(str){ return btoa(unescape(encodeURIComponent(str||""))); }
+function b64Decode(str){ return decodeURIComponent(escape(atob(str||""))); }
+
+// Run code
+runBtn.addEventListener("click", async ()=>{
+  outputEl.textContent = "Running...";
+  const code = editor.getValue();
+  const langId = langSelect.value;
+
+  const payload = {
+    source_code: b64Encode(code),
+    language_id: parseInt(langId),
+    stdin: b64Encode(""),
+    expected_output: null
+  };
+
+  try{
+    const res = await fetch(API_URL,{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "X-RapidAPI-Key":API_KEY,
+        "X-RapidAPI-Host":"judge0-ce.p.rapidapi.com"
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    let output = "";
+    if(data.compile_output) output+="=== Compile Output ===\n"+b64Decode(data.compile_output)+"\n\n";
+    if(data.stdout) output+="=== Output ===\n"+b64Decode(data.stdout)+"\n\n";
+    if(data.stderr) output+="=== Stderr ===\n"+b64Decode(data.stderr)+"\n\n";
+    outputEl.textContent = output || "No output";
+  }catch(err){
+    outputEl.textContent = "Error: "+err.message;
+  }
+});
+
+// Helper to format code based on language
+function formatCode(code, langId) {
+    if (!code) return "";
+
+    // JavaScript / Node.js - use Prettier if loaded
+    if (langId == '63' && window.prettier && window.prettierPlugins) {
+        try {
+            return prettier.format(code, { parser: "babel", plugins: prettierPlugins });
+        } catch (e) {
+            alert("JS Formatting failed: " + e.message);
+            return code;
+        }
+    }
+
+    // Python - simple indentation (4 spaces)
+    else if (langId == '71') {
+        return code.split('\n')
+                   .map(line => line.trimStart())
+                   .join('\n');
+    }
+
+    // C / C++ / C# / Java - simple 2-space indentation
+    else if (['50','54','51','62'].includes(langId)) {
+        let indent = 0;
+        const formatted = code.split('\n').map(line => {
+            let trimmed = line.trim();
+            if (trimmed.endsWith("}")) indent -= 1;
+            const indented = "  ".repeat(Math.max(indent,0)) + trimmed;
+            if (trimmed.endsWith("{")) indent += 1;
+            return indented;
+        }).join('\n');
+        return formatted;
+    }
+
+    // Fallback - return code as-is
+    return code;
+}
+
+
+// Load default snippet
+editor.setValue(formatCode(LANGS[0].snippet,LANGS[0].id.toString()));
+setEditorMode(LANGS[0].name);
+langSelect.value = LANGS[0].id;
+</script>
+</body>
+</html>
